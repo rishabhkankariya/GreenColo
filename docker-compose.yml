@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: greencolo_influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=greencolo_admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=greencolo_admin_password_2026
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG:-greencolo}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET:-greencolo_telemetry}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-greencolo-super-secret-admin-token-2026}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - greencolo_net
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: greencolo_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-greencolo_db}
+      - POSTGRES_USER=${POSTGRES_USER:-greencolo_admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-greencolo_secure_pass_2026}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - greencolo_net
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: greencolo_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+    networks:
+      - greencolo_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: greencolo_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - POSTGRES_HOST=postgres
+    depends_on:
+      - influxdb
+      - postgres
+    networks:
+      - greencolo_net
+
+volumes:
+  influxdb_data:
+  postgres_data:
+  grafana_data:
+
+networks:
+  greencolo_net:
+    driver: bridge
