@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: greencolo-transcode-batch
+  labels:
+    app: greencolo
+    workload-type: batch
+    managed-by: greencolo-scheduler
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    metadata:
+      labels:
+        app: greencolo
+        workload-type: batch
+    spec:
+      restartPolicy: OnFailure
+      # Target placement label injected dynamically by GreenColo Decision Engine
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: greencolo.placement/destination
+                    operator: In
+                    values:
+                      - cloud
+      containers:
+        - name: batch-processor
+          image: python:3.11-slim
+          command: ["python", "-c"]
+          args:
+            - |
+              import time, math
+              print("[GreenColo Workload] Batch job started on target node.")
+              start = time.time()
+              # Compute intensive simulated batch job
+              total = 0
+              for i in range(1, 40000000):
+                  total += math.sqrt(i)
+              duration = round(time.time() - start, 2)
+              print(f"[GreenColo Workload] Batch completed in {duration}s. Result hash: {total}")
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1024Mi"
